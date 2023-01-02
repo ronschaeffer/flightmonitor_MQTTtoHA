@@ -1,3 +1,7 @@
+######
+This fork uses mqtt-cli instead of mosquitto, and MQTT broker settings are hardcoded. mqtt-cli: https://www.hivemq.com/blog/mqtt-cli/
+######
+
 # flightmonitor_MQTTtoHA
 
 ## Introduction
