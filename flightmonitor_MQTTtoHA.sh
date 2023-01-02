@@ -1,5 +1,8 @@
 #!/bin/bash
 
+###### MODIFIED TO USE mqtt-cli (HIVEMQ) INSTEAD OF mosquitto AND TO HARDCODE BROKER SETINGS #####
+###### Change MQTT broker settings in line 55 #####
+
 #Copyright © 2021 Eric Georgeaux (eric.georgeaux at gmail.com)
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), 
@@ -18,15 +21,11 @@ version="1.0.0"
 ######################################
 # Start of the configuration section #
 ######################################
-# Connection to MQTT broker
-mqtt_broker_ip="192.168.0.1"
-#mqtt_broker_port=1883
-#user="user"
-#pwd="pwd"
+# Connection to MQTT broker - Settings now hardcoded in line 55
 
 # Topics for the JSON messages
 mqtt_topic_prefix="flightmonitor"
-fr24feed_subtopic="fr24feed"
+fr24feed_subtopic=""
 dump1090_subtopic="dump1090"
 piaware_subtopic="piaware"
 
@@ -34,7 +33,7 @@ piaware_subtopic="piaware"
 # Discovery prefix for Home Assistant (defualt is homeassistant. See https://www.home-assistant.io/docs/mqtt/discovery/
 discovery_prefix="homeassistant"
 # In case several computers with 1090MHz receiver sent their data to the same instance of Home Assistant
-unique_id_suffix="_RPi4"
+unique_id_suffix="_136worple"
 # If use_device=1, a device identifer is added in the discovery messages. The name of the device is built from the sub_topic above and the unique_id_suffix
 # For instance: all sensors linked with the program fr24feed will be linked to the device "fr24feed_RPi4". It eases the integration in Home Assistant : by selected the device,
 # in Home Assistant configuration, an entity card with all the sensors linked to the device si ready to be included in Lovelace interface.
@@ -52,8 +51,8 @@ update_rate=60
 # End of the configuration section #
 ####################################
 
-# Arguments for mosquitto_pub calls
-mosquittoArgs="`[ ! -z $mqtt_broker_ip ] && echo "-h $mqtt_broker_ip" || echo "-h localhost"` `[ ! -z $user ] && echo "-u $user -P $pwd"` `[ ! -z $port ] && echo "-p $port" || echo "-p 1883"`"
+# Arguments for mqtt pub calls
+mqttArgs="-h xxx.xxx.xxx.xxx -p xxxx -u XXXXXX -pw XXXXXX"
 
 # Publish Home assistant MQTT discovery messages for FR24feed
 fr24feedHADiscovery() {
@@ -87,7 +86,7 @@ fr24feedHADiscovery() {
 	msglist+=("{\"name\":\"Last transmission to FR24\",\"unique_id\":\"$unique_id\",\"icon\":\"mdi:clock\",\"unit_of_measurement\":\"s\",\"~\":\"$mqtt_topic_prefix/$subtopic\",\"availability_topic\":\"~/status\",\"state_topic\":\"~\",\"value_template\":\"{{value_json.lastACsent}}\"}")
 	for index in ${!topiclist[@]}; do
 		msg=`[ $use_device -eq 0 ] && echo ${msglist[$index]} || echo ${msglist[$index]} | sed -r "s/^(.*)[}]$/\1,$device}/"`
-		cmd="mosquitto_pub $mosquittoArgs -r -t ${topiclist[$index]} -m '$msg'"
+		cmd="mqtt pub $mqttArgs -r -t ${topiclist[$index]} -m '$msg'"
 		eval "$cmd"
 	done
 }
@@ -112,7 +111,7 @@ dump1090HADiscovery() {
 	msglist+=("{\"name\":\"Aircrafts with positions\",\"unique_id\":\"$unique_id\",\"icon\":\"mdi:airplane\",\"unit_of_measurement\":\"aircraft(s)\",\"~\":\"$mqtt_topic_prefix/$subtopic\",\"availability_topic\":\"~/status\",\"state_topic\":\"~\",\"value_template\":\"{{value_json.aircraft_with_positions}}\"}")
 	for index in ${!topiclist[@]}; do
 		msg=`[ $use_device -eq 0 ] && echo ${msglist[$index]} || echo ${msglist[$index]} | sed -r "s/^(.*)[}]$/\1,$device}/"`
-		cmd="mosquitto_pub $mosquittoArgs -r -t ${topiclist[$index]} -m '$msg'"
+		cmd="mqtt pub $mqttArgs -r -t ${topiclist[$index]} -m '$msg'"
 		eval "$cmd"
 	done
 }
@@ -157,7 +156,7 @@ piawareHADiscovery() {
 	msglist+=("{\"name\":\"Connection to flightaware.com\",\"unique_id\":\"$unique_id\",\"device_class\":\"connectivity\",\"~\":\"$mqtt_topic_prefix/$subtopic\",\"availability_topic\":\"~/status\",\"state_topic\":\"~\",\"value_template\":\"{{value_json.piawareserver_connection}}\"}")
 	for index in ${!topiclist[@]}; do
 		msg=`[ $use_device -eq 0 ] && echo ${msglist[$index]} || echo ${msglist[$index]} | sed -r "s/^(.*)[}]$/\1,$device}/"`
-		cmd="mosquitto_pub $mosquittoArgs -r -t ${topiclist[$index]} -m '$msg'"
+		cmd="mqtt pub $mqttArgs -r -t ${topiclist[$index]} -m '$msg'"
 		eval "$cmd"
 	done
 }
@@ -280,13 +279,13 @@ piawareUpdate() {
 # Called when SIGINT or EXIT signals are detected to change the status of the sensors in Home Assistant to unavailable
 changeStatus() {
 	if [ ! -z "$fr24feed_subtopic" ]; then
-		mosquitto_pub $mosquittoArgs -r -t $mqtt_topic_prefix/$fr24feed_subtopic/status -m "offline"
+		mqtt pub $mqttArgs -r -t $mqtt_topic_prefix/$fr24feed_subtopic/status -m "offline"
 	fi
 	if [ ! -z "$dump1090_subtopic" ]; then
-		mosquitto_pub $mosquittoArgs -r -t $mqtt_topic_prefix/$dump1090_subtopic/status -m "offline"
+		mqtt pub $mqttArgs -r -t $mqtt_topic_prefix/$dump1090_subtopic/status -m "offline"
 	fi
 	if [ ! -z "$piaware_subtopic" ]; then
-		mosquitto_pub $mosquittoArgs -r -t $mqtt_topic_prefix/$piaware_subtopic/status -m "offline"
+		mqtt pub $mqttArgs -r -t $mqtt_topic_prefix/$piaware_subtopic/status -m "offline"
 	fi
 	logger -t $script End of script execution
 	exit
@@ -361,18 +360,18 @@ fi
 while true; do
 	if [ ! -z "$dump1090_subtopic" ]; then
 		dump1090Update
-		mosquitto_pub $mosquittoArgs -t $mqtt_topic_prefix/$dump1090_subtopic -m $(echo $dump1090Msg | tr -d ' ')
-		mosquitto_pub $mosquittoArgs -r -t $mqtt_topic_prefix/$dump1090_subtopic/status -m "online"
+		mqtt pub $mqttArgs -t $mqtt_topic_prefix/$dump1090_subtopic -m $(echo $dump1090Msg | tr -d ' ')
+		mqtt pub $mqttArgs -r -t $mqtt_topic_prefix/$dump1090_subtopic/status -m "online"
 	fi
 	if [ ! -z "$fr24feed_subtopic" ]; then
 		fr24feedUpdate
-		mosquitto_pub $mosquittoArgs -t $mqtt_topic_prefix/$fr24feed_subtopic -m $(echo $fr24feedMsg | tr -d ' ')
-		mosquitto_pub $mosquittoArgs -r -t $mqtt_topic_prefix/$fr24feed_subtopic/status -m "online"
+		mqtt pub $mqttArgs -t $mqtt_topic_prefix/$fr24feed_subtopic -m $(echo $fr24feedMsg | tr -d ' ')
+		mqtt pub $mqttArgs -r -t $mqtt_topic_prefix/$fr24feed_subtopic/status -m "online"
 	fi
 	if [ ! -z "$piaware_subtopic" ]; then
 		piawareUpdate
-		mosquitto_pub $mosquittoArgs -t $mqtt_topic_prefix/$piaware_subtopic -m $(echo $piawareMsg | tr -d ' ')
-		mosquitto_pub $mosquittoArgs -r -t $mqtt_topic_prefix/$piaware_subtopic/status -m "online"
+		mqtt pub $mqttArgs -t $mqtt_topic_prefix/$piaware_subtopic -m $(echo $piawareMsg | tr -d ' ')
+		mqtt pub $mqttArgs -r -t $mqtt_topic_prefix/$piaware_subtopic/status -m "online"
 	fi
 	if [ "$run_mode" = "once" ]; then
 		logger -t $script End of script execution
